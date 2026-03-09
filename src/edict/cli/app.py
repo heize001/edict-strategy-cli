@@ -139,6 +139,20 @@ def caf_watch(
 
 
 @app.command()
+def hub_serve(
+    host: str = typer.Option("127.0.0.1", "--host"),
+    port: int = typer.Option(8790, "--port"),
+) -> None:
+    """Start local OpenClaw/edict status hub (HTML + JSON)."""
+
+    import uvicorn
+
+    from edict.hub.server import create_app
+
+    uvicorn.run(create_app(), host=host, port=port, log_level="info")
+
+
+@app.command()
 def doctor(
     path: Path = typer.Argument(Path("."), help="Project path to inspect"),
 ) -> None:
