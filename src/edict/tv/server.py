@@ -14,6 +14,16 @@ from edict.tv.models import TradingViewSignal
 console = Console()
 JST = ZoneInfo("Asia/Tokyo")
 
+# Default notify window (inclusive start, exclusive end) in JST
+NOTIFY_START_HOUR = 9
+NOTIFY_END_HOUR = 24
+
+# De-dup window in seconds
+DEDUP_TTL_SEC = 300
+
+# In-memory dedup cache: key -> last_seen_epoch_sec
+_DEDUP: dict[str, float] = {}
+
 
 def _fmt_jst(ts: datetime | None) -> str:
     if ts is None:
@@ -21,6 +31,40 @@ def _fmt_jst(ts: datetime | None) -> str:
     if ts.tzinfo is None:
         ts = ts.replace(tzinfo=JST)
     return ts.astimezone(JST).strftime("%Y-%m-%d %H:%M:%S JST")
+
+
+def _in_notify_window(now_jst: datetime) -> bool:
+    # allow end=24 meaning 00:00 next day
+    h = now_jst.hour
+    if NOTIFY_END_HOUR == 24:
+        return h >= NOTIFY_START_HOUR
+    return NOTIFY_START_HOUR <= h < NOTIFY_END_HOUR
+
+
+def _dedup_key(signal: TradingViewSignal) -> str:
+    return "|".join(
+        [
+            (signal.symbol or "-").upper(),
+            (signal.timeframe or "-").lower(),
+            (signal.signal or "-").lower(),
+            (signal.side or "-").lower(),
+        ]
+    )
+
+
+def _dedup_should_drop(key: str, now_epoch: float) -> bool:
+    # prune
+    cutoff = now_epoch - DEDUP_TTL_SEC
+    for k, t in list(_DEDUP.items()):
+        if t < cutoff:
+            _DEDUP.pop(k, None)
+
+    last = _DEDUP.get(key)
+    if last is not None and (now_epoch - last) < DEDUP_TTL_SEC:
+        return True
+
+    _DEDUP[key] = now_epoch
+    return False
 
 
 def create_app() -> FastAPI:
@@ -76,6 +120,15 @@ def create_app() -> FastAPI:
                 signal = TradingViewSignal.model_validate(payload)
             except Exception as exc:  # noqa: BLE001
                 raise HTTPException(status_code=422, detail=f"invalid payload: {exc}") from exc
+
+        # Decide notify (window + dedup)
+        now_jst = datetime.now(tz=JST)
+        if not _in_notify_window(now_jst):
+            return {"ok": True, "skipped": "outside_notify_window"}
+
+        key = _dedup_key(signal)
+        if _dedup_should_drop(key, now_jst.timestamp()):
+            return {"ok": True, "skipped": "dedup"}
 
         # Notify WeCom
         try:
