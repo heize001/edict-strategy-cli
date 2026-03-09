@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from rich.console import Console
@@ -10,6 +12,15 @@ from edict.integrations.wecom import WeComClient
 from edict.tv.models import TradingViewSignal
 
 console = Console()
+JST = ZoneInfo("Asia/Tokyo")
+
+
+def _fmt_jst(ts: datetime | None) -> str:
+    if ts is None:
+        ts = datetime.now(tz=JST)
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=JST)
+    return ts.astimezone(JST).strftime("%Y-%m-%d %H:%M:%S JST")
 
 
 def create_app() -> FastAPI:
@@ -69,18 +80,24 @@ def create_app() -> FastAPI:
         # Notify WeCom
         try:
             wecom = WeComClient()
+            side_cn = {"long": "做多", "short": "做空", "flat": "观望"}.get(
+                (signal.side or "").lower(),
+                signal.side or "-",
+            )
+            price_txt = f"{signal.price:.2f}" if isinstance(signal.price, (int, float)) else "-"
+
             await wecom.send_text(
                 "\n".join(
                     [
-                        "[TradingView Signal]",
-                        f"symbol: {signal.symbol}",
-                        f"timeframe: {signal.timeframe}",
-                        f"exchange: {signal.exchange or '-'}",
-                        f"signal: {signal.signal}",
-                        f"side: {signal.side or '-'}",
-                        f"price: {signal.price if signal.price is not None else '-'}",
-                        f"ts: {signal.ts.isoformat() if signal.ts else '-'}",
-                        f"note: {signal.note or '-'}",
+                        "【TradingView 信号】",
+                        f"品种：{signal.symbol}",
+                        f"周期：{signal.timeframe}",
+                        f"交易所：{signal.exchange or '-'}",
+                        f"信号：{signal.signal}",
+                        f"方向：{side_cn}",
+                        f"价格：{price_txt}",
+                        f"时间：{_fmt_jst(signal.ts)}",
+                        f"备注：{signal.note or '-'}",
                     ]
                 )
             )
