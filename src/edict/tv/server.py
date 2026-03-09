@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException, Query, Request
 from rich.console import Console
 
 from edict.integrations.wecom import WeComClient
@@ -25,7 +25,7 @@ def create_app() -> FastAPI:
     async def tv_webhook(
         request: Request,
         x_tv_secret: str | None = Header(default=None, alias="X-TV-SECRET"),
-        secret_qs: str | None = None,
+        secret_qs: str | None = Query(default=None, alias="secret"),
     ):
         """Receive TradingView webhook.
 
