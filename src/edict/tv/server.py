@@ -9,6 +9,8 @@ from fastapi import FastAPI, Header, HTTPException, Query, Request
 from rich.console import Console
 
 from edict.integrations.wecom import WeComClient
+from edict.tv.analyzer import build_plan
+from edict.tv.marketdata import fetch_hyperliquid_candles
 from edict.tv.models import TradingViewSignal
 
 console = Console()
@@ -130,6 +132,14 @@ def create_app() -> FastAPI:
         if _dedup_should_drop(key, now_jst.timestamp()):
             return {"ok": True, "skipped": "dedup"}
 
+        # Analysis -> instruction
+        candles = await fetch_hyperliquid_candles(
+            symbol=signal.symbol,
+            interval="1h",
+            lookback_hours=96,
+        )
+        plan = build_plan(signal=signal, candles=candles)
+
         # Notify WeCom
         try:
             wecom = WeComClient()
@@ -139,18 +149,29 @@ def create_app() -> FastAPI:
             )
             price_txt = f"{signal.price:.2f}" if isinstance(signal.price, (int, float)) else "-"
 
+            def fmt(v: float | None) -> str:
+                return f"{v:.2f}" if isinstance(v, (int, float)) else "-"
+
             await wecom.send_text(
                 "\n".join(
                     [
-                        "【TradingView 信号】",
-                        f"品种：{signal.symbol}",
+                        "【TradingView 信号→分析→指令】",
+                        f"品种：{signal.symbol}（{signal.exchange or '-'}）",
                         f"周期：{signal.timeframe}",
-                        f"交易所：{signal.exchange or '-'}",
-                        f"信号：{signal.signal}",
-                        f"方向：{side_cn}",
-                        f"价格：{price_txt}",
+                        f"原始信号：{signal.signal}｜{side_cn}",
+                        f"触发价：{price_txt}",
                         f"时间：{_fmt_jst(signal.ts)}",
-                        f"备注：{signal.note or '-'}",
+                        "---",
+                        f"结论：{plan.decision}",
+                        f"方向：{plan.direction}",
+                        f"入场：{fmt(plan.entry)}",
+                        f"止损：{fmt(plan.stop)}",
+                        f"止盈1：{fmt(plan.tp1)}",
+                        f"止盈2：{fmt(plan.tp2)}",
+                        f"理由：{plan.reason}",
+                        "---",
+                        "风控：逐仓；单笔最大亏损建议≤0.2%权益（50x建议更小）。",
+                        "提示：不满足条件就不做；不追插针。",
                     ]
                 )
             )
@@ -158,6 +179,6 @@ def create_app() -> FastAPI:
             console.print(f"WeCom send failed: {exc}")
             raise HTTPException(status_code=502, detail="wecom send failed") from exc
 
-        return {"ok": True}
+        return {"ok": True, "decision": plan.decision}
 
     return app
