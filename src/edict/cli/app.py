@@ -90,6 +90,28 @@ def _load_bars_from_jsonl(path: Path) -> list[Bar]:
 
 
 @app.command()
+def tv_serve(
+    host: str = typer.Option("0.0.0.0", "--host"),
+    port: int = typer.Option(8787, "--port"),
+) -> None:
+    """Start TradingView webhook server.
+
+    Env:
+    - WECOM_WEBHOOK_URL: required
+    - TV_WEBHOOK_SECRET: optional. If set, TradingView must send header X-TV-SECRET.
+
+    Endpoint:
+    - POST /tv/webhook
+    """
+
+    import uvicorn
+
+    from edict.tv.server import create_app
+
+    uvicorn.run(create_app(), host=host, port=port, log_level="info")
+
+
+@app.command()
 def doctor(
     path: Path = typer.Argument(Path("."), help="Project path to inspect"),
 ) -> None:
