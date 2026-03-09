@@ -112,6 +112,33 @@ def tv_serve(
 
 
 @app.command()
+def caf_watch(
+    poll_sec: int = typer.Option(15, "--poll-sec", help="Polling interval seconds"),
+    include_ab: bool = typer.Option(
+        True,
+        "--ab",
+        help="Include A+B: BTC/ETH and file top/bot rows",
+    ),
+) -> None:
+    """Watch local CAF factor signals and push analysis to WeCom."""
+
+    import asyncio
+
+    from edict.tv.caf_watch import caf_watch as _caf_watch
+
+    include_btc_eth = include_ab
+    include_file_rows = include_ab
+
+    asyncio.run(
+        _caf_watch(
+            include_btc_eth=include_btc_eth,
+            include_file_rows=include_file_rows,
+            poll_sec=poll_sec,
+        )
+    )
+
+
+@app.command()
 def doctor(
     path: Path = typer.Argument(Path("."), help="Project path to inspect"),
 ) -> None:

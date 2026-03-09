@@ -23,6 +23,52 @@ def _default_signal_dir() -> Path:
     return Path(os.getenv("CAF_SIGNAL_DIR", "/Volumes/CAF/CryptoAlphaFactory/signals/daily"))
 
 
+def load_factor_signals_from_file(fp: Path) -> list[FactorSignal]:
+    out: list[FactorSignal] = []
+    if not fp.exists():
+        return out
+    try:
+        with fp.open("r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                sym = (row.get("symbol") or "").strip().upper()
+                if not sym:
+                    continue
+
+                def fnum(v: str | None) -> float | None:
+                    if v is None or str(v).strip() == "":
+                        return None
+                    try:
+                        return float(v)
+                    except ValueError:
+                        return None
+
+                def inum(v: str | None) -> int | None:
+                    if v is None or str(v).strip() == "":
+                        return None
+                    try:
+                        return int(float(v))
+                    except ValueError:
+                        return None
+
+                out.append(
+                    FactorSignal(
+                        timestamp=inum(row.get("timestamp")),
+                        iso_utc=(row.get("iso_utc") or None),
+                        symbol=sym,
+                        side=(row.get("side") or None),
+                        weight=fnum(row.get("weight")),
+                        score=fnum(row.get("score")),
+                        rank_xs=fnum(row.get("rank_xs")),
+                        source_file=str(fp),
+                    )
+                )
+    except Exception:
+        return []
+
+    return out
+
+
 def load_latest_factor_signal(symbol: str) -> FactorSignal | None:
     """Load the latest CAF factor signal for a given symbol.
 
