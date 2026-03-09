@@ -104,7 +104,7 @@ async def caf_watch(
     """Watch CAF factor signals and push analysis to WeCom."""
 
     wecom = WeComClient()
-    last_fp: str | None = None
+    last_sig_id: tuple[str, int | None] | None = None
 
     console.print(
         f"[caf-watch] watching {str(_caf_signal_dir())}"
@@ -122,13 +122,19 @@ async def caf_watch(
             await asyncio.sleep(poll_sec)
             continue
 
-        if last_fp == str(fp):
+        rows = load_factor_signals_from_file(fp)
+        data_ts = None
+        ts_vals = [r.timestamp for r in rows if r.timestamp is not None]
+        if ts_vals:
+            data_ts = max(ts_vals)
+
+        sig_id = (str(fp), data_ts)
+        if last_sig_id == sig_id:
             await asyncio.sleep(poll_sec)
             continue
 
-        # New signal file detected
-        last_fp = str(fp)
-        rows = load_factor_signals_from_file(fp)
+        # New signal detected (file path + data timestamp)
+        last_sig_id = sig_id
 
         # Build targets
         targets: dict[str, FactorSignal] = {}
@@ -146,6 +152,8 @@ async def caf_watch(
         if not targets:
             await asyncio.sleep(poll_sec)
             continue
+
+        console.print(f"[caf-watch] new signal: file={fp.name} data_ts={data_ts}")
 
         # Analyze and send
         for sym, fs in targets.items():
