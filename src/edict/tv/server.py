@@ -24,9 +24,18 @@ def create_app() -> FastAPI:
     async def tv_webhook(
         signal: TradingViewSignal,
         x_tv_secret: str | None = Header(default=None, alias="X-TV-SECRET"),
+        secret_qs: str | None = None,
     ):
+        """Receive TradingView webhook.
+
+        TradingView's webhook UI typically doesn't support custom headers.
+        So we accept the secret either via header `X-TV-SECRET` or query string
+        `?secret=<value>`.
+        """
+
         if secret:
-            if not x_tv_secret or x_tv_secret != secret:
+            provided = x_tv_secret or secret_qs
+            if not provided or provided != secret:
                 raise HTTPException(status_code=401, detail="invalid secret")
 
         # Notify WeCom
