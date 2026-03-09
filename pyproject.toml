@@ -30,6 +30,9 @@ line-length = 100
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
 
+[tool.ruff.lint.per-file-ignores]
+"src/edict/cli/app.py" = ["B008"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 

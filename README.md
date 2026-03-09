@@ -14,10 +14,13 @@ It gives you:
 # 1) install
 poetry install
 
-# 2) run demo strategy
+# 2) generate a new strategy skeleton
+poetry run edict new-strategy mean-reversion --out ./my-strategy
+
+# 3) run demo strategy
 poetry run edict run --strategy edict.strategies.demo:DemoStrategy --config configs/demo.yaml
 
-# 3) list built-in strategies
+# 4) list built-in strategies
 poetry run edict strategies
 ```
 
