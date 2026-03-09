@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import json
 import os
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 from rich.console import Console
 
 from edict.integrations.wecom import WeComClient
@@ -22,7 +23,7 @@ def create_app() -> FastAPI:
 
     @app.post("/tv/webhook")
     async def tv_webhook(
-        signal: TradingViewSignal,
+        request: Request,
         x_tv_secret: str | None = Header(default=None, alias="X-TV-SECRET"),
         secret_qs: str | None = None,
     ):
@@ -37,6 +38,33 @@ def create_app() -> FastAPI:
             provided = x_tv_secret or secret_qs
             if not provided or provided != secret:
                 raise HTTPException(status_code=401, detail="invalid secret")
+
+        raw = (await request.body()).decode("utf-8", errors="replace").strip()
+
+        payload: dict | None = None
+        if raw:
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                payload = None
+
+        if payload is None:
+            # Fallback: treat as plain-text message
+            signal = TradingViewSignal(
+                symbol="UNKNOWN",
+                timeframe="unknown",
+                exchange=None,
+                signal="tv_raw",
+                side=None,
+                price=None,
+                ts=None,
+                note=raw,
+            )
+        else:
+            try:
+                signal = TradingViewSignal.model_validate(payload)
+            except Exception as exc:  # noqa: BLE001
+                raise HTTPException(status_code=422, detail=f"invalid payload: {exc}") from exc
 
         # Notify WeCom
         try:
