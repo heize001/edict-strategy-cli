@@ -18,6 +18,8 @@ poetry install
 poetry run edict new-strategy mean-reversion --out ./my-strategy
 
 # 3) run demo strategy
+poetry run edict run --config configs/demo.yaml
+# (or explicitly)
 poetry run edict run --strategy edict.strategies.demo:DemoStrategy --config configs/demo.yaml
 
 # 4) list built-in strategies

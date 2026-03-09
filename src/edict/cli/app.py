@@ -8,6 +8,13 @@ import yaml
 from rich.console import Console
 from rich.table import Table
 
+from edict.cli.templates import (
+    TEMPLATE_GHA_CI,
+    TEMPLATE_PROJECT_GITIGNORE,
+    TEMPLATE_PROJECT_PYPROJECT,
+    TEMPLATE_PROJECT_README,
+)
+from edict.core.doctor import run_doctor
 from edict.core.engine import Engine
 from edict.core.loader import load_strategy_class
 from edict.core.models import Bar
@@ -49,7 +56,7 @@ def test_load_{strategy_name}():
 
 TEMPLATE_CONFIG = """symbol: BTCUSDT
 timeframe: 1h
-# strategy: {module_path}:{class_name}
+strategy: {module_path}:{class_name}
 """
 
 
@@ -58,6 +65,17 @@ def _load_config(path: Path) -> dict:
         raise typer.BadParameter(f"Config not found: {path}")
     with path.open("r", encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
+
+
+def _maybe_strategy_from_config(cfg: dict) -> str | None:
+    val = cfg.get("strategy")
+    if val is None:
+        return None
+    if not isinstance(val, str) or not val.strip():
+        raise typer.BadParameter(
+            "config.strategy must be a non-empty string like 'module:ClassName'"
+        )
+    return val.strip()
 
 
 def _load_bars_from_jsonl(path: Path) -> list[Bar]:
@@ -69,6 +87,23 @@ def _load_bars_from_jsonl(path: Path) -> list[Bar]:
                 continue
             bars.append(Bar.model_validate_json(line))
     return bars
+
+
+@app.command()
+def doctor(
+    path: Path = typer.Argument(Path("."), help="Project path to inspect"),
+) -> None:
+    """Check the current project for common setup issues."""
+
+    report = run_doctor(path.resolve())
+    if report.ok:
+        console.print("OK: project looks healthy")
+        return
+
+    console.print("Issues found:")
+    for item in report.issues:
+        console.print(f"- {item}")
+    raise typer.Exit(code=1)
 
 
 @app.command()
@@ -87,10 +122,100 @@ def strategies() -> None:
     console.print(table)
 
 
+DEFAULT_OUT_DIR = Path(".")
+
+
+@app.command()
+def new_project(
+    name: str = typer.Argument(..., help="Project folder name, e.g. my-btc-strategy"),
+    out_dir: Path = typer.Option(DEFAULT_OUT_DIR, "--out", help="Parent output directory"),
+    strategy: str = typer.Option("demo", "--strategy", help="Initial strategy name"),
+) -> None:
+    """Generate a new, runnable strategy project (Poetry + CI).
+
+    This creates a standalone project folder with:
+    - pyproject.toml
+    - src/strategies/<strategy>.py
+    - configs/<strategy>.yaml
+    - tests/
+    - .github/workflows/ci.yml
+
+    After generation:
+    ```bash
+    cd <project>
+    poetry install
+    poetry run edict run --config configs/<strategy>.yaml
+    ```
+    """
+
+    import re
+
+    project = name.strip()
+    if not project:
+        raise typer.BadParameter("Project name cannot be empty")
+
+    safe_strategy = strategy.strip().lower().replace(" ", "-")
+    if not re.fullmatch(r"[a-z0-9][a-z0-9\-]*", safe_strategy):
+        raise typer.BadParameter("Strategy name must be kebab-case")
+
+    module_name = safe_strategy.replace("-", "_")
+    class_name = "".join(part.capitalize() for part in safe_strategy.split("-")) + "Strategy"
+
+    root = (out_dir / project).resolve()
+    if root.exists() and any(root.iterdir()):
+        raise typer.BadParameter(f"Target directory not empty: {root}")
+
+    (root / ".github" / "workflows").mkdir(parents=True, exist_ok=True)
+    (root / "src" / "strategies").mkdir(parents=True, exist_ok=True)
+    (root / "configs").mkdir(parents=True, exist_ok=True)
+    (root / "tests").mkdir(parents=True, exist_ok=True)
+
+    # package init
+    (root / "src" / "strategies" / "__init__.py").write_text("", encoding="utf-8")
+
+    module_path = f"strategies.{module_name}"
+
+    (root / "pyproject.toml").write_text(
+        TEMPLATE_PROJECT_PYPROJECT.format(project_name=project),
+        encoding="utf-8",
+    )
+    (root / "README.md").write_text(
+        TEMPLATE_PROJECT_README.format(project_name=project, strategy_module=module_name),
+        encoding="utf-8",
+    )
+    (root / ".gitignore").write_text(TEMPLATE_PROJECT_GITIGNORE, encoding="utf-8")
+    (root / ".github" / "workflows" / "ci.yml").write_text(TEMPLATE_GHA_CI, encoding="utf-8")
+
+    # strategy + config + test
+    (root / "src" / "strategies" / f"{module_name}.py").write_text(
+        TEMPLATE_STRATEGY.format(class_name=class_name, strategy_name=safe_strategy),
+        encoding="utf-8",
+    )
+    (root / "configs" / f"{module_name}.yaml").write_text(
+        TEMPLATE_CONFIG.format(module_path=module_path, class_name=class_name),
+        encoding="utf-8",
+    )
+    (root / "tests" / f"test_{module_name}.py").write_text(
+        TEMPLATE_TEST.format(
+            strategy_name=module_name,
+            module_path=module_path,
+            class_name=class_name,
+        ),
+        encoding="utf-8",
+    )
+
+    console.print("Generated project:")
+    console.print(f"- {root}")
+    console.print("Next:")
+    console.print(f"- cd {root}")
+    console.print("- poetry install")
+    console.print(f"- poetry run edict run --config configs/{module_name}.yaml")
+
+
 @app.command()
 def new_strategy(
     name: str = typer.Argument(..., help="Strategy name, e.g. mean-reversion"),
-    out_dir: Path = typer.Option(Path("."), "--out", help="Output directory"),
+    out_dir: Path = typer.Option(DEFAULT_OUT_DIR, "--out", help="Output directory"),
 ) -> None:
     """Generate a new strategy skeleton + test + config.
 
@@ -165,12 +290,17 @@ def new_strategy(
     console.print("")
     console.print("Next steps (inside that project):")
     console.print("- ensure 'edict' is installed (or add it as a dependency)")
-    console.print(f"- run: edict run --strategy {module_path}:{class_name} --config {config_path}")
+    console.print(f"- add to config: strategy: {module_path}:{class_name}")
+    console.print(f"- run: edict run --config {config_path}")
 
 
 @app.command()
 def run(
-    strategy: str = typer.Option(..., "--strategy", help="Strategy spec: module:ClassName"),
+    strategy: str | None = typer.Option(
+        None,
+        "--strategy",
+        help="Strategy spec: module:ClassName (optional if config has 'strategy: ...')",
+    ),
     config: Path = typer.Option(..., "--config", exists=False, help="YAML config path"),
     bars: Path | None = typer.Option(None, "--bars", help="Optional JSONL bars file"),
 ) -> None:
@@ -180,7 +310,13 @@ def run(
     symbol = str(cfg.get("symbol", "BTCUSDT"))
     timeframe = str(cfg.get("timeframe", "1h"))
 
-    StrategyCls = load_strategy_class(strategy)
+    strategy_spec = strategy or _maybe_strategy_from_config(cfg)
+    if strategy_spec is None:
+        raise typer.BadParameter(
+            "Missing strategy. Provide --strategy module:ClassName or set config.strategy"
+        )
+
+    StrategyCls = load_strategy_class(strategy_spec)
     ctx = StrategyContext(config=cfg, symbol=symbol, timeframe=timeframe)
     strat = StrategyCls(ctx)
 

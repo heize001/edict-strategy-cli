@@ -1,3 +1,4 @@
 symbol: BTCUSDT
 timeframe: 1h
+strategy: edict.strategies.demo:DemoStrategy
 notes: demo config

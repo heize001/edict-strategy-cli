@@ -21,7 +21,8 @@ edict = "edict.cli.app:app"
 [dependency-groups]
 dev = [
     "pytest (>=9.0.2,<10.0.0)",
-    "ruff (>=0.15.5,<0.16.0)"
+    "ruff (>=0.15.5,<0.16.0)",
+    "typer (>=0.24.1,<0.25.0)"
 ]
 
 [tool.ruff]
