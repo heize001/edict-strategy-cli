@@ -10,6 +10,7 @@ from rich.console import Console
 
 from edict.integrations.wecom import WeComClient
 from edict.tv.analyzer import build_plan
+from edict.tv.factor import load_latest_factor_signal
 from edict.tv.marketdata import fetch_hyperliquid_candles
 from edict.tv.models import TradingViewSignal
 
@@ -140,6 +141,22 @@ def create_app() -> FastAPI:
         )
         plan = build_plan(signal=signal, candles=candles)
 
+        factor = load_latest_factor_signal(signal.symbol)
+        factor_lines: list[str] = []
+        if factor is None:
+            factor_lines = ["因子：未找到本地因子信号（CAF_SIGNAL_DIR）"]
+        else:
+            factor_side_cn = {"LONG": "偏多", "SHORT": "偏空"}.get(
+                (factor.side or "").upper(),
+                factor.side or "-",
+            )
+            score_txt = factor.score if factor.score is not None else "-"
+            rank_txt = factor.rank_xs if factor.rank_xs is not None else "-"
+            factor_lines = [
+                f"因子：{factor_side_cn}｜score={score_txt}｜rank={rank_txt}",
+                f"因子来源：{factor.source_file}",
+            ]
+
         # Notify WeCom
         try:
             wecom = WeComClient()
@@ -161,6 +178,7 @@ def create_app() -> FastAPI:
                         f"原始信号：{signal.signal}｜{side_cn}",
                         f"触发价：{price_txt}",
                         f"时间：{_fmt_jst(signal.ts)}",
+                        *factor_lines,
                         "---",
                         f"结论：{plan.decision}",
                         f"方向：{plan.direction}",
