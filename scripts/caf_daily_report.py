@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 
 from edict.integrations.wecom import WeComClient
 from edict.reporting.caf_backtest import eval_last_24h
+from edict.reporting.caf_stats import CafStats, WinLoss, save_stats
 
 JST = ZoneInfo("Asia/Tokyo")
 
@@ -29,6 +30,18 @@ async def main() -> None:
     win = counts.get("win", 0)
     loss = counts.get("loss", 0)
     scored = win + loss
+
+    # compute directional stats from the same evaluation window
+    long_w = sum(1 for r in res if r.status == "win" and r.direction == "做多")
+    long_l = sum(1 for r in res if r.status == "loss" and r.direction == "做多")
+    short_w = sum(1 for r in res if r.status == "win" and r.direction == "做空")
+    short_l = sum(1 for r in res if r.status == "loss" and r.direction == "做空")
+
+    stats_path = Path(os.getenv("EDICT_CAF_STATS_PATH", "data/caf_stats.json"))
+    save_stats(
+        stats_path,
+        CafStats(long=WinLoss(win=long_w, loss=long_l), short=WinLoss(win=short_w, loss=short_l)),
+    )
 
     # decision breakdown
     decision_counts = Counter(r.decision for r in res)

@@ -11,6 +11,7 @@ from rich.console import Console
 
 from edict.integrations.wecom import WeComClient
 from edict.reporting.caf_log import CafDecisionLog, append_jsonl
+from edict.reporting.caf_stats import load_stats
 from edict.tv.analyzer import build_plan
 from edict.tv.factor import FactorSignal, load_factor_signals_from_file
 from edict.tv.marketdata import fetch_hyperliquid_candles
@@ -189,6 +190,26 @@ async def caf_watch(
             def fmt(v: float | None) -> str:
                 return f"{v:.2f}" if isinstance(v, (int, float)) else "-"
 
+            # Attach winrate hint (computed daily)
+            stats_path = Path(os.getenv("EDICT_CAF_STATS_PATH", "data/caf_stats.json"))
+            stats = load_stats(stats_path)
+            if stats is None:
+                winrate_hint = "胜率：暂无（样本不足）"
+            else:
+                if plan.direction == "做多":
+                    wl = stats.long
+                elif plan.direction == "做空":
+                    wl = stats.short
+                else:
+                    wl = None
+
+                if wl is None or wl.winrate is None:
+                    winrate_hint = "胜率：暂无（样本不足）"
+                else:
+                    winrate_hint = f"胜率：{wl.winrate*100:.1f}%（n={wl.n}）"
+
+            direction_line = f"方向：{plan.direction}｜{winrate_hint}"
+
             msg = "\n".join(
                 [
                     "【CAF 因子信号→分析→指令】",
@@ -199,7 +220,7 @@ async def caf_watch(
                     f"参考现价：{price_txt}",
                     "---",
                     f"结论：{plan.decision}",
-                    f"方向：{plan.direction}",
+                    direction_line,
                     f"入场：{fmt(plan.entry)}",
                     f"止损：{fmt(plan.stop)}",
                     f"止盈1：{fmt(plan.tp1)}",
