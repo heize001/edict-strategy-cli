@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 from rich.console import Console
 
 from edict.integrations.wecom import WeComClient
+from edict.reporting.caf_log import CafDecisionLog, append_jsonl
 from edict.tv.analyzer import build_plan
 from edict.tv.factor import FactorSignal, load_factor_signals_from_file
 from edict.tv.marketdata import fetch_hyperliquid_candles
@@ -202,5 +203,27 @@ async def caf_watch(
             )
 
             await wecom.send_text(msg)
+
+            # Persist for daily backtest/recap
+            log_root = Path(os.getenv("EDICT_CAF_LOG_DIR", "data/caf_logs"))
+            append_jsonl(
+                log_root,
+                CafDecisionLog(
+                    created_at_utc=datetime.utcnow().isoformat() + "Z",
+                    caf_timestamp_ms=fs.timestamp,
+                    symbol=fs.symbol,
+                    factor_side=fs.side,
+                    factor_score=fs.score,
+                    factor_rank_xs=fs.rank_xs,
+                    factor_source_file=fs.source_file,
+                    decision=plan.decision,
+                    direction=plan.direction,
+                    entry=plan.entry,
+                    stop=plan.stop,
+                    tp1=plan.tp1,
+                    tp2=plan.tp2,
+                    reason=plan.reason,
+                ),
+            )
 
         await asyncio.sleep(poll_sec)
