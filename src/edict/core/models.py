@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -14,4 +13,4 @@ class Bar(BaseModel):
     high: float
     low: float
     close: float
-    volume: Optional[float] = None
+    volume: float | None = None

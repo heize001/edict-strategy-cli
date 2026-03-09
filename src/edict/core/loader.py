@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import importlib
 from dataclasses import dataclass
-from typing import Type
 
 from .strategy import Strategy
 
@@ -13,7 +12,7 @@ class StrategySpec:
     symbol: str
 
 
-def load_strategy_class(spec: str) -> Type[Strategy]:
+def load_strategy_class(spec: str) -> type[Strategy]:
     """Load a Strategy class from 'module.path:ClassName'."""
 
     if ":" not in spec:

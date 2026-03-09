@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any
 
 from .models import Bar
 
@@ -9,7 +9,7 @@ from .models import Bar
 class StrategyContext:
     """Lightweight runtime context passed to strategies."""
 
-    def __init__(self, *, config: Dict[str, Any], symbol: str, timeframe: str):
+    def __init__(self, *, config: dict[str, Any], symbol: str, timeframe: str):
         self.config = config
         self.symbol = symbol
         self.timeframe = timeframe
@@ -27,7 +27,7 @@ class Strategy(ABC):
         return
 
     @abstractmethod
-    def on_bar(self, bar: Bar) -> Optional[Dict[str, Any]]:
+    def on_bar(self, bar: Bar) -> dict[str, Any] | None:
         """Process one bar. Return an optional dict of signals/decisions."""
 
     def on_finish(self) -> None:  # optional

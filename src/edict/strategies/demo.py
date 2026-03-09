@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from edict.core.models import Bar
 from edict.core.strategy import Strategy
@@ -9,7 +9,7 @@ from edict.core.strategy import Strategy
 class DemoStrategy(Strategy):
     name = "demo"
 
-    def on_bar(self, bar: Bar) -> Optional[Dict[str, Any]]:
+    def on_bar(self, bar: Bar) -> dict[str, Any] | None:
         # Example: emit a trivial signal when close > open
         if bar.close > bar.open:
             return {

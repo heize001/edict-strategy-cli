@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Iterable, List, Dict, Any
+from collections.abc import Iterable
+from typing import Any
 
 from rich.console import Console
 
@@ -12,10 +13,10 @@ class Engine:
     def __init__(self, *, console: Console | None = None):
         self.console = console or Console()
 
-    def run(self, strategy: Strategy, bars: Iterable[Bar]) -> List[Dict[str, Any]]:
+    def run(self, strategy: Strategy, bars: Iterable[Bar]) -> list[dict[str, Any]]:
         """Run a strategy over a stream of bars, collecting emitted signals."""
 
-        out: List[Dict[str, Any]] = []
+        out: list[dict[str, Any]] = []
         strategy.on_start()
         for bar in bars:
             signal = strategy.on_bar(bar)
