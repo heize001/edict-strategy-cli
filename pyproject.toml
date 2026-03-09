@@ -1,0 +1,38 @@
+[project]
+name = "edict"
+version = "0.1.0"
+description = "EDICT: extensible CLI strategy framework"
+authors = [
+    {name = "OpenClaw"}
+]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.10,<4.0"
+dependencies = [
+    "typer (>=0.24.1,<0.25.0)",
+    "pyyaml (>=6.0.3,<7.0.0)",
+    "pydantic (>=2.12.5,<3.0.0)",
+    "rich (>=14.3.3,<15.0.0)"
+]
+
+[project.scripts]
+edict = "edict.cli.app:app"
+
+[dependency-groups]
+dev = [
+    "pytest (>=9.0.2,<10.0.0)",
+    "ruff (>=0.15.5,<0.16.0)"
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
